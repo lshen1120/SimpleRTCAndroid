@@ -61,81 +61,18 @@ public class WebRtcClient {
 		client.send(message.toString());
 	}
 
-	public WebRtcClient(RTCListener listener, String host) {
+	public WebRtcClient(RTCListener listener) {
 		mListener = listener;
 		factory = new PeerConnectionFactory();
 		videoSourceStopped=true;
 		iceServers.add(new PeerConnection.IceServer(
 				"stun:192.168.1.161:9001"));
-		List<BasicNameValuePair> extraHeaders = Arrays
-				.asList(new BasicNameValuePair("Cookie", "session=abcd"));
-		client = new WebSocketClient(URI.create(host),
-				new WebSocketClient.Listener() {
-					@Override
-					public void onConnect() {
-						Log.d(TAG, "Connected!");
-					}
-
-					@Override
-					public void onMessage(String message) {
-						Log.d(TAG, String.format("Got string message! %s",
-								message));
-						try {
-							JSONObject jsonObject = new JSONObject(message);
-							String type = jsonObject.getString("type");
-							eventSource.onEvent(type, jsonObject);
-
-						} catch (JSONException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					}
-
-					@Override
-					public void onMessage(byte[] data) {
-						Log.d(TAG, String.format("Got binary message! %s"));
-					}
-
-					@Override
-					public void onDisconnect(int code, String reason) {
-						Log.d(TAG, String.format(
-								"Disconnected! Code: %d Reason: %s", code,
-								reason));
-					}
-
-					@Override
-					public void onError(Exception error) {
-						Log.e(TAG, "Error!", error);
-					}
-
-				}, extraHeaders);
 
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveAudio", "true"));
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveVideo", "true"));
-	}
-
-	public void setCamera(String cameraFacing, String height, String width) {
-		MediaConstraints videoConstraints = new MediaConstraints();
-		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
-				"maxHeight", height));
-		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
-				"maxWidth", width));
-
-		videoSource = factory.createVideoSource(
-				getVideoCapturer(cameraFacing), videoConstraints);
-		localStream = factory.createLocalMediaStream("ARDAMS");
-		localStream.addTrack(factory.createVideoTrack("ARDAMSv0", videoSource));
 		
-		//MediaConstraints audioConstraints = new MediaConstraints();
-        //lMS.addTrack(factory.createAudioTrack("ARDAMSa0",
-		//		factory.createAudioSource(audioConstraints)));
-		videoSourceStopped=false;
-		mListener.onLocalStream(localStream);
-	}
-
-	public void start(String name) {
 		eventSource.addListener("getConnections", new EventCommand() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
@@ -214,6 +151,70 @@ public class WebRtcClient {
 				peer.pc.setRemoteDescription(peer, sdp);
 			}
 		});
+	}
+
+	public void setCamera(String cameraFacing, String height, String width) {
+		MediaConstraints videoConstraints = new MediaConstraints();
+		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
+				"maxHeight", height));
+		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
+				"maxWidth", width));
+
+		videoSource = factory.createVideoSource(
+				getVideoCapturer(cameraFacing), videoConstraints);
+		localStream = factory.createLocalMediaStream("ARDAMS");
+		localStream.addTrack(factory.createVideoTrack("ARDAMSv0", videoSource));
+		
+		//MediaConstraints audioConstraints = new MediaConstraints();
+        //lMS.addTrack(factory.createAudioTrack("ARDAMSa0",
+		//		factory.createAudioSource(audioConstraints)));
+		videoSourceStopped=false;
+		mListener.onLocalStream(localStream);
+	}
+
+	public void connectChannel(String channelUrl) {
+		List<BasicNameValuePair> extraHeaders = Arrays
+				.asList(new BasicNameValuePair("Cookie", "session=abcd"));
+		client = new WebSocketClient(URI.create(channelUrl),
+				new WebSocketClient.Listener() {
+					@Override
+					public void onConnect() {
+						Log.d(TAG, "Connected!");
+					}
+
+					@Override
+					public void onMessage(String message) {
+						Log.d(TAG, String.format("Got string message! %s",
+								message));
+						try {
+							JSONObject jsonObject = new JSONObject(message);
+							String type = jsonObject.getString("type");
+							eventSource.onEvent(type, jsonObject);
+
+						} catch (JSONException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+
+					@Override
+					public void onMessage(byte[] data) {
+						Log.d(TAG, String.format("Got binary message! %s"));
+					}
+
+					@Override
+					public void onDisconnect(int code, String reason) {
+						Log.d(TAG, String.format(
+								"Disconnected! Code: %d Reason: %s", code,
+								reason));
+					}
+
+					@Override
+					public void onError(Exception error) {
+						Log.e(TAG, "Error!", error);
+					}
+
+				}, extraHeaders);
 		client.connect();
 	}
 
@@ -238,11 +239,14 @@ public class WebRtcClient {
 			videoSource.stop();
 			videoSourceStopped=true;
 		}
+		for (Peer peer : peers.values()) {
+			peer.pc.close();
+		} 
+		peers.clear();
 		if(client!=null){
 			client.disconnect();
 		}
 	}
-	
 	
 	private void addPeer(String id) {
 		Peer peer = new Peer(id);

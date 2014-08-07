@@ -42,7 +42,8 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 		setContentView(vsv);
 
 		PeerConnectionFactory.initializeAndroidGlobals(this, true, true);
-
+		client = new WebRtcClient(RTCActivity.this);
+		
 		final EditText roomInput = new EditText(this);
 		roomInput.setText("ws://192.168.1.161:8000/");
 		roomInput.setSelection(roomInput.getText().length());
@@ -51,10 +52,9 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 			public void onClick(DialogInterface dialog, int which) {
 				dialog.dismiss();
 				String url = roomInput.getText().toString();
-				client = new WebRtcClient(RTCActivity.this, url);
 				// Camera settings
 				client.setCamera("front", "640", "480");
-				client.start("android_test");
+				client.connectChannel(url);
 			}
 		};
 		AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -71,20 +71,24 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 	public void onPause() {
 		super.onPause();
 		vsv.onPause();
-		if (client != null) {
-			client.stopLocalViedo();
-		}
+		client.stopLocalViedo();
 	}
 
 	@Override
 	public void onResume() {
 		super.onResume();
 		vsv.onResume();
-		if (client != null) {
-		 client.restartLocalVideo();
-		}
+		client.restartLocalVideo();
 	}
-
+	
+	 @Override
+	 protected void onDestroy() {
+	    if(client!=null)
+	    	client.close();
+	    super.onDestroy();
+	  }
+	 
+	 
 	@Override
 	public void onStatusChanged(final String newStatus) {
 		runOnUiThread(new Runnable() {
