@@ -25,7 +25,7 @@ import org.webrtc.VideoSource;
 
 import android.util.Log;
 import com.codebutler.android_websockets.WebSocketClient;
-import com.simplertc.android.EventSource.EventCommand;
+import com.simplertc.android.EventSource.EventHandler;
 
 public class WebRtcClient {
 	private PeerConnectionFactory factory;
@@ -66,14 +66,15 @@ public class WebRtcClient {
 		factory = new PeerConnectionFactory();
 		videoSourceStopped=true;
 		iceServers.add(new PeerConnection.IceServer(
-				"stun:192.168.1.161:9001"));
+				"stun:leechanproxy.cloudapp.net:9001"));
+		//iceServers.add(new IceServer("turn:211.64.115.116?transport=tcp","shij","shij"));
 
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveAudio", "true"));
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveVideo", "true"));
 		
-		eventSource.addListener("getConnections", new EventCommand() {
+		eventSource.addListener("getConnections", new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				JSONArray connectionIds = data.getJSONArray("connectionIds");
@@ -86,7 +87,7 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("newConnection", new EventCommand() {
+		eventSource.addListener("newConnection", new EventHandler() {
 
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
@@ -95,7 +96,7 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("removeConnection", new EventCommand() {
+		eventSource.addListener("removeConnection", new EventHandler() {
 
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
@@ -106,7 +107,7 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("candidate", new EventCommand() {
+		eventSource.addListener("candidate", new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				Log.d(TAG, "AddIceCandidateCommand");
@@ -123,7 +124,7 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("createOffer", new EventCommand() {
+		eventSource.addListener("createOffer", new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				String peerId = data.getString("from");
@@ -139,7 +140,7 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("createAnswer", new EventCommand() {
+		eventSource.addListener("createAnswer", new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				String peerId = data.getString("from");
@@ -172,14 +173,14 @@ public class WebRtcClient {
 		mListener.onLocalStream(localStream);
 	}
 
-	public void connectChannel(String channelUrl) {
+	public void connectChannel(final String channelUrl) {
 		List<BasicNameValuePair> extraHeaders = Arrays
 				.asList(new BasicNameValuePair("Cookie", "session=abcd"));
 		client = new WebSocketClient(URI.create(channelUrl),
 				new WebSocketClient.Listener() {
 					@Override
 					public void onConnect() {
-						Log.d(TAG, "Connected!");
+						eventSource.notifyListeners(RTCEvents.channelOpen,"channel",channelUrl);
 					}
 
 					@Override
@@ -189,8 +190,7 @@ public class WebRtcClient {
 						try {
 							JSONObject jsonObject = new JSONObject(message);
 							String type = jsonObject.getString("type");
-							eventSource.onEvent(type, jsonObject);
-
+							eventSource.notifyListeners(type, jsonObject);
 						} catch (JSONException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -211,6 +211,7 @@ public class WebRtcClient {
 
 					@Override
 					public void onError(Exception error) {
+						eventSource.notifyListeners(RTCEvents.error,"errorMessage",error.getMessage());
 						Log.e(TAG, "Error!", error);
 					}
 
@@ -257,7 +258,7 @@ public class WebRtcClient {
 		Peer peer = peers.get(id);
 		if(peer !=null){
 			peer.pc.close();
-			//peer.pc.dispose();
+			//peer.pc.dispose(); bug
 			peers.remove(peer.id);
 		}
 	}
@@ -424,14 +425,13 @@ public class WebRtcClient {
 
 		@Override
 		public void onError() {
+			
 		}
 
 		@Override
 		public void onAddStream(MediaStream mediaStream) {
 			Log.d(TAG, "onAddStream " + mediaStream.label());
-
-			// remote streams are displayed from 1 to MAX_PEER (0 is
-			// localStream)
+			mListener.onStatusChanged("OnRemoteStream "+id.toString());
 			mListener.onAddRemoteStream(mediaStream);
 		}
 
@@ -439,7 +439,7 @@ public class WebRtcClient {
 		public void onRemoveStream(MediaStream mediaStream) {
 			mListener.onRemoveRemoteStream(mediaStream);
 			removePeer(id);
-			mListener.onStatusChanged("Remove RemoteStream "+id.toString());
+			mListener.onStatusChanged("RemoveStream "+id.toString());
 		}
 
 		@Override
@@ -447,15 +447,11 @@ public class WebRtcClient {
 		}
 
 		public Peer(String id) {
-			Log.d(TAG, "new Peer: " + id);
 			addDTLSConstraintIfMissing(pcConstraints);
-			this.pc = factory.createPeerConnection(iceServers, pcConstraints,
-					this);
+			this.pc = factory.createPeerConnection(iceServers, pcConstraints,this);
 			this.id = id;
-
 			pc.addStream(localStream, new MediaConstraints());
-
-			mListener.onStatusChanged("CONNECTING");
+			mListener.onStatusChanged("Connecting "+id.toString());
 		}
 
 		@Override

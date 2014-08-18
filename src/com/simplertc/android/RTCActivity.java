@@ -45,7 +45,7 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 		client = new WebRtcClient(RTCActivity.this);
 		
 		final EditText roomInput = new EditText(this);
-		roomInput.setText("ws://192.168.1.161:8000/");
+		roomInput.setText("ws://leechanproxy.cloudapp.net:8000/");
 		roomInput.setSelection(roomInput.getText().length());
 		DialogInterface.OnClickListener listener = new DialogInterface.OnClickListener() {
 			@Override
