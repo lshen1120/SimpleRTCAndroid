@@ -25,7 +25,7 @@ import org.webrtc.VideoSource;
 
 import android.util.Log;
 import com.codebutler.android_websockets.WebSocketClient;
-import com.simplertc.android.EventSource.EventHandler;
+import com.simplertc.android.RTCEventSource.EventHandler;
 
 public class WebRtcClient {
 	private PeerConnectionFactory factory;
@@ -36,8 +36,8 @@ public class WebRtcClient {
 	private RTCListener mListener;
 	private VideoSource videoSource;
 	private WebSocketClient client;
-	private final EventSource eventSource = new EventSource();
-	private final static String TAG = WebRtcClient.class.getCanonicalName();
+	private final RTCEventSource eventSource = new RTCEventSource();
+	private final static String TAG = "C_"+ WebRtcClient.class.getCanonicalName();
 	private boolean videoSourceStopped;
 	public boolean isVideoSourceStopped() {
 		return videoSourceStopped;
@@ -74,7 +74,7 @@ public class WebRtcClient {
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveVideo", "true"));
 		
-		eventSource.addListener("getConnections", new EventHandler() {
+		eventSource.addListener(RTCEvents.getConnections, new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				JSONArray connectionIds = data.getJSONArray("connectionIds");
@@ -87,30 +87,26 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("newConnection", new EventHandler() {
+		eventSource.addListener(RTCEvents.newConnection, new EventHandler() {
 
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 			      addPeer(data.getString("connectionId"));
-
 			}
 		});
 
-		eventSource.addListener("removeConnection", new EventHandler() {
+		eventSource.addListener(RTCEvents.removeConnection, new EventHandler() {
 
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
-				
 				String connectId = data.getString("connectionId");
-				
 				removePeer(connectId);
 			}
 		});
 
-		eventSource.addListener("candidate", new EventHandler() {
+		eventSource.addListener(RTCEvents.iceCandidate, new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
-				Log.d(TAG, "AddIceCandidateCommand");
 				String peerId = data.getString("from");
 				JSONObject candidateJson = data.getJSONObject("candidate");
 				PeerConnection pc = peers.get(peerId).pc;
@@ -124,11 +120,10 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("createOffer", new EventHandler() {
+		eventSource.addListener(RTCEvents.createOffer, new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				String peerId = data.getString("from");
-				//addPeer(peerId);
 				Peer peer = peers.get(peerId);
 				JSONObject sdpJson = data.getJSONObject("sdp");
 				SessionDescription sdp = new SessionDescription(
@@ -140,7 +135,7 @@ public class WebRtcClient {
 			}
 		});
 
-		eventSource.addListener("createAnswer", new EventHandler() {
+		eventSource.addListener(RTCEvents.createAnswer, new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
 				String peerId = data.getString("from");
@@ -180,7 +175,15 @@ public class WebRtcClient {
 				new WebSocketClient.Listener() {
 					@Override
 					public void onConnect() {
-						eventSource.notifyListeners(RTCEvents.channelOpen,"channel",channelUrl);
+						JSONObject data =new JSONObject();
+						try {
+							data.put("channel", channelUrl);
+							eventSource.notifyListeners(RTCEvents.channelOpen,data);
+						} catch (JSONException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						
 					}
 
 					@Override
@@ -211,8 +214,15 @@ public class WebRtcClient {
 
 					@Override
 					public void onError(Exception error) {
-						eventSource.notifyListeners(RTCEvents.error,"errorMessage",error.getMessage());
-						Log.e(TAG, "Error!", error);
+						JSONObject data =new JSONObject();
+						try {
+							data.put("errorMessage", error.getMessage());
+							eventSource.notifyListeners(RTCEvents.error,data);
+							Log.e(TAG, "Error!", error);
+						} catch (JSONException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
 					}
 
 				}, extraHeaders);
@@ -397,9 +407,9 @@ public class WebRtcClient {
 		public void onIceConnectionChange(
 				PeerConnection.IceConnectionState iceConnectionState) {
 			if (iceConnectionState == PeerConnection.IceConnectionState.DISCONNECTED) {
-				removePeer(id);
-				mListener.onStatusChanged("DISCONNECTED");
+				removePeer(id);	
 			}
+			mListener.onStatusChanged(iceConnectionState.toString());
 		}
 
 		@Override
@@ -425,21 +435,19 @@ public class WebRtcClient {
 
 		@Override
 		public void onError() {
-			
 		}
 
 		@Override
 		public void onAddStream(MediaStream mediaStream) {
-			Log.d(TAG, "onAddStream " + mediaStream.label());
-			mListener.onStatusChanged("OnRemoteStream "+id.toString());
+			eventSource.notifyListeners(RTCEvents.addStream, null);
 			mListener.onAddRemoteStream(mediaStream);
 		}
 
 		@Override
 		public void onRemoveStream(MediaStream mediaStream) {
+			eventSource.notifyListeners(RTCEvents.removeStream, null);
 			mListener.onRemoveRemoteStream(mediaStream);
 			removePeer(id);
-			mListener.onStatusChanged("RemoveStream "+id.toString());
 		}
 
 		@Override

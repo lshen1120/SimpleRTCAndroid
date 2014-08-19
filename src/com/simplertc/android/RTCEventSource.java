@@ -7,10 +7,10 @@ import java.util.List;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class EventSource {
+public class RTCEventSource {
 	private HashMap<String, List<EventHandler>> eventHandlers;
 
-	public EventSource() {
+	public RTCEventSource() {
 		eventHandlers = new HashMap<String, List<EventHandler>>();
 	}
 
@@ -28,21 +28,10 @@ public class EventSource {
 		}
 	}
 
-	public void notifyListeners(String type, String dataKey, String dataValue) {
-		JSONObject data = new JSONObject();
-		try {
-			data.put(dataKey, dataValue);
-			notifyListeners(type, data);
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
-
-	}
-
 	public void addListener(String type, EventHandler handler) {
 		List<EventHandler> handlers = eventHandlers.get(type);
 		if (handlers == null) {
-			handlers = new LinkedList<EventSource.EventHandler>();
+			handlers = new LinkedList<RTCEventSource.EventHandler>();
 			eventHandlers.put(type, handlers);
 		}
 		handlers.add(handler);
