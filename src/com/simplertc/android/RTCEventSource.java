@@ -3,8 +3,6 @@ package com.simplertc.android;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-
-import org.json.JSONException;
 import org.json.JSONObject;
 
 public class RTCEventSource {
