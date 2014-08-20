@@ -13,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.webrtc.AudioSource;
+import org.webrtc.AudioTrack;
 import org.webrtc.DataChannel;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
@@ -23,6 +24,7 @@ import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoSource;
+import org.webrtc.VideoTrack;
 
 import android.R.bool;
 import android.util.Log;
@@ -40,14 +42,15 @@ public class WebRtcClient {
 	private AudioSource audioSource;
 	private WebSocketClient client;
 	private final RTCEventSource eventSource = new RTCEventSource();
-	private final static String TAG = WebRtcClient.class.getCanonicalName();
+	private final static String TAG = "WebRtcClient";
 	private boolean localVideoStopped;
+
 	public boolean isLocalStreamStopped() {
 		return localVideoStopped;
 	}
-	
+
 	public interface RTCListener {
-		
+
 		void onStatusChanged(String newStatus);
 
 		void onLocalStream(MediaStream localStream);
@@ -55,7 +58,7 @@ public class WebRtcClient {
 		void onAddRemoteStream(MediaStream remoteStream);
 
 		void onRemoveRemoteStream(MediaStream remoteStream);
-		
+
 	}
 
 	public void sendMessage(String to, String type, JSONObject message)
@@ -65,23 +68,25 @@ public class WebRtcClient {
 		client.send(message.toString());
 	}
 
-	public void addListener(String type,EventHandler handler){
+	public void addListener(String type, EventHandler handler) {
 		eventSource.addListener(type, handler);
 	}
+
 	public WebRtcClient(RTCListener listener) {
 		mListener = listener;
 		factory = new PeerConnectionFactory();
-		localVideoStopped=true;
+		localVideoStopped = true;
 		iceServers.add(new PeerConnection.IceServer(
 				"stun:leechanproxy.cloudapp.net:9001"));
-		//iceServers.add(new IceServer("turn:211.64.115.116?transport=tcp","shij","shij"));
+		// iceServers.add(new
+		// IceServer("turn:211.64.115.116?transport=tcp","shij","shij"));
 
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveAudio", "true"));
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveVideo", "true"));
 		localStream = factory.createLocalMediaStream("ARDAMS");
-				
+
 		eventSource.addListener(RTCEvents.getConnections, new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
@@ -99,7 +104,7 @@ public class WebRtcClient {
 
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
-			      addPeer(data.getString("connectionId"));
+				addPeer(data.getString("connectionId"));
 			}
 		});
 
@@ -150,31 +155,37 @@ public class WebRtcClient {
 				Peer peer = peers.get(peerId);
 				JSONObject sdpJson = data.getJSONObject("sdp");
 				SessionDescription sdp = new SessionDescription(
-						SessionDescription.Type.fromCanonicalForm(sdpJson.getString("type")),
-						sdpJson.getString("sdp"));
+						SessionDescription.Type.fromCanonicalForm(sdpJson
+								.getString("type")), sdpJson.getString("sdp"));
 				peer.pc.setRemoteDescription(peer, sdp);
 			}
 		});
 	}
-	
-	public WebRtcClient enableVideo(String cameraFacing, String height, String width) {		
+
+	public WebRtcClient configVideo(String cameraFacing, String height,
+			String width) {
+		if(videoSource!=null){
+			videoSource.stop();
+			localStream.videoTracks.clear();
+		}
+		
 		MediaConstraints videoConstraints = new MediaConstraints();
 		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"maxHeight", height));
 		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"maxWidth", width));
-		videoSource = factory.createVideoSource(
-				getVideoCapturer(cameraFacing), videoConstraints);
+		videoSource = factory.createVideoSource(getVideoCapturer(cameraFacing),
+				videoConstraints);
 		localStream.addTrack(factory.createVideoTrack("ARDAMSv0", videoSource));
-		localVideoStopped=false;
+		localVideoStopped = false;
 		mListener.onLocalStream(localStream);
 		return this;
 	}
-	
-	public WebRtcClient enableAudio(){
+
+	public WebRtcClient configAudio() {
 		MediaConstraints audioConstraints = new MediaConstraints();
-		audioSource=factory.createAudioSource(audioConstraints);
-		localStream.addTrack(factory.createAudioTrack("ARDAMSa0",audioSource));
+		audioSource = factory.createAudioSource(audioConstraints);
+		localStream.addTrack(factory.createAudioTrack("ARDAMSa0", audioSource));
 		return this;
 	}
 
@@ -185,15 +196,15 @@ public class WebRtcClient {
 				new WebSocketClient.Listener() {
 					@Override
 					public void onConnect() {
-						JSONObject data =new JSONObject();
+						JSONObject data = new JSONObject();
 						try {
 							data.put("channel", channelUrl);
-							eventSource.notifyListeners(RTCEvents.channelOpen,data);
+							eventSource.notifyListeners(RTCEvents.channelOpen,
+									data);
 						} catch (JSONException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
-						
 					}
 
 					@Override
@@ -220,14 +231,15 @@ public class WebRtcClient {
 						Log.d(TAG, String.format(
 								"Disconnected! Code: %d Reason: %s", code,
 								reason));
+
 					}
 
 					@Override
 					public void onError(Exception error) {
-						JSONObject data =new JSONObject();
+						JSONObject data = new JSONObject();
 						try {
 							data.put("errorMessage", error.getMessage());
-							eventSource.notifyListeners(RTCEvents.error,data);
+							eventSource.notifyListeners(RTCEvents.error, data);
 							Log.e(TAG, "Error!", error);
 						} catch (JSONException e) {
 							// TODO Auto-generated catch block
@@ -239,36 +251,37 @@ public class WebRtcClient {
 		client.connect();
 	}
 
-	
-	public void stopLocalVideo(){
-		if(!localVideoStopped && videoSource!=null){
+	public void stopLocalVideo() {
+		if (!localVideoStopped && videoSource != null) {
 			videoSource.stop();
-			localVideoStopped=true;
+			localVideoStopped = true;
 		}
 	}
-	
-	public void restartLocalVideo(){
-		if(localVideoStopped && videoSource!=null){
+
+	public void restartLocalVideo() {
+		if (localVideoStopped && videoSource != null) {
 			videoSource.restart();
-			localVideoStopped=false;
+			localVideoStopped = false;
 		}
 	}
-	
-	public void close(){
-		if(videoSource!=null)
-			videoSource.dispose();
-		if(audioSource!=null)
-			audioSource.dispose();
-		localVideoStopped=true;
+
+	public void close() {
+		if (videoSource != null) {
+			videoSource.stop();
+		}
+		factory.dispose();
+		localStream.audioTracks.clear();
+		localStream.videoTracks.clear();
+		localVideoStopped = true;
 		for (Peer peer : peers.values()) {
 			peer.pc.close();
-		} 
+		}
 		peers.clear();
-		if(client!=null){
+		if (client != null) {
 			client.disconnect();
 		}
 	}
-	
+
 	private void addPeer(String id) {
 		Peer peer = new Peer(id);
 		peers.put(id, peer);
@@ -276,13 +289,13 @@ public class WebRtcClient {
 
 	private void removePeer(String id) {
 		Peer peer = peers.get(id);
-		if(peer !=null){
+		if (peer != null) {
 			peer.pc.close();
-			//peer.pc.dispose(); bug
+			// peer.pc.dispose(); bug
 			peers.remove(peer.id);
 		}
 	}
-	
+
 	/*
 	 * Cycle through likely device names for the camera and return the first
 	 * capturer that works, or crash if none do.
@@ -417,7 +430,7 @@ public class WebRtcClient {
 		public void onIceConnectionChange(
 				PeerConnection.IceConnectionState iceConnectionState) {
 			if (iceConnectionState == PeerConnection.IceConnectionState.DISCONNECTED) {
-				removePeer(id);	
+				removePeer(id);
 			}
 			mListener.onStatusChanged(iceConnectionState.toString());
 		}
@@ -466,7 +479,8 @@ public class WebRtcClient {
 
 		public Peer(String id) {
 			addDTLSConstraintIfMissing(pcConstraints);
-			this.pc = factory.createPeerConnection(iceServers, pcConstraints,this);
+			this.pc = factory.createPeerConnection(iceServers, pcConstraints,
+					this);
 			this.id = id;
 			pc.addStream(localStream, new MediaConstraints());
 		}
