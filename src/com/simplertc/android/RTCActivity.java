@@ -11,10 +11,13 @@ import android.view.Window;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import org.json.JSONObject;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.VideoRenderer;
 import org.webrtc.VideoRendererGui;
+
+import com.simplertc.android.RTCEventSource.EventHandler;
 
 public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 	private com.simplertc.android.AppRTCGLView vsv;
@@ -43,6 +46,14 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 
 		PeerConnectionFactory.initializeAndroidGlobals(this, true, true);
 		client = new WebRtcClient(RTCActivity.this);
+		client.addListener(RTCEvents.error, new EventHandler() {
+			
+			@Override
+			public void onExcute(String type, JSONObject data) throws Exception {
+				Toast.makeText(getApplicationContext(), "error "+data.getString("errorMessage"),
+						Toast.LENGTH_SHORT).show();
+			}
+		});
 		
 		final EditText roomInput = new EditText(this);
 		roomInput.setText("ws://leechanproxy.cloudapp.net:8000/");
@@ -53,7 +64,8 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 				dialog.dismiss();
 				String url = roomInput.getText().toString();
 				// Camera settings
-				client.setCamera("front", "640", "480");
+				client.enableAudio()
+					  .enableVideo("front", "640", "480");
 				client.connectChannel(url);
 			}
 		};
@@ -71,7 +83,7 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 	public void onPause() {
 		super.onPause();
 		vsv.onPause();
-		client.stopLocalViedo();
+		client.stopLocalVideo();
 	}
 
 	@Override
@@ -116,8 +128,7 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 		runOnUiThread(new Runnable() {
 			@Override
 			public void run() {
-				remoteStream.videoTracks.get(0).addRenderer(
-						new VideoRenderer(remoteRender));
+				remoteStream.videoTracks.get(0).addRenderer(new VideoRenderer(remoteRender));
 			}
 		});
 
@@ -129,7 +140,6 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 
 			@Override
 			public void run() {
-				// TODO Auto-generated method stub
 				remoteStream.videoTracks.get(0).dispose();
 			}
 		});

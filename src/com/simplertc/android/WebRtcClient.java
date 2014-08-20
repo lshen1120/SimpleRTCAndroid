@@ -12,6 +12,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.webrtc.AudioSource;
 import org.webrtc.DataChannel;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
@@ -23,6 +24,7 @@ import org.webrtc.SessionDescription;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoSource;
 
+import android.R.bool;
 import android.util.Log;
 import com.codebutler.android_websockets.WebSocketClient;
 import com.simplertc.android.RTCEventSource.EventHandler;
@@ -35,12 +37,13 @@ public class WebRtcClient {
 	private MediaStream localStream;
 	private RTCListener mListener;
 	private VideoSource videoSource;
+	private AudioSource audioSource;
 	private WebSocketClient client;
 	private final RTCEventSource eventSource = new RTCEventSource();
-	private final static String TAG = "C_"+ WebRtcClient.class.getCanonicalName();
-	private boolean videoSourceStopped;
-	public boolean isVideoSourceStopped() {
-		return videoSourceStopped;
+	private final static String TAG = WebRtcClient.class.getCanonicalName();
+	private boolean localVideoStopped;
+	public boolean isLocalStreamStopped() {
+		return localVideoStopped;
 	}
 	
 	public interface RTCListener {
@@ -52,6 +55,7 @@ public class WebRtcClient {
 		void onAddRemoteStream(MediaStream remoteStream);
 
 		void onRemoveRemoteStream(MediaStream remoteStream);
+		
 	}
 
 	public void sendMessage(String to, String type, JSONObject message)
@@ -61,10 +65,13 @@ public class WebRtcClient {
 		client.send(message.toString());
 	}
 
+	public void addListener(String type,EventHandler handler){
+		eventSource.addListener(type, handler);
+	}
 	public WebRtcClient(RTCListener listener) {
 		mListener = listener;
 		factory = new PeerConnectionFactory();
-		videoSourceStopped=true;
+		localVideoStopped=true;
 		iceServers.add(new PeerConnection.IceServer(
 				"stun:leechanproxy.cloudapp.net:9001"));
 		//iceServers.add(new IceServer("turn:211.64.115.116?transport=tcp","shij","shij"));
@@ -73,7 +80,8 @@ public class WebRtcClient {
 				"OfferToReceiveAudio", "true"));
 		pcConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"OfferToReceiveVideo", "true"));
-		
+		localStream = factory.createLocalMediaStream("ARDAMS");
+				
 		eventSource.addListener(RTCEvents.getConnections, new EventHandler() {
 			@Override
 			public void onExcute(String type, JSONObject data) throws Exception {
@@ -148,24 +156,26 @@ public class WebRtcClient {
 			}
 		});
 	}
-
-	public void setCamera(String cameraFacing, String height, String width) {
+	
+	public WebRtcClient enableVideo(String cameraFacing, String height, String width) {		
 		MediaConstraints videoConstraints = new MediaConstraints();
 		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"maxHeight", height));
 		videoConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
 				"maxWidth", width));
-
 		videoSource = factory.createVideoSource(
 				getVideoCapturer(cameraFacing), videoConstraints);
-		localStream = factory.createLocalMediaStream("ARDAMS");
 		localStream.addTrack(factory.createVideoTrack("ARDAMSv0", videoSource));
-		
-		//MediaConstraints audioConstraints = new MediaConstraints();
-        //lMS.addTrack(factory.createAudioTrack("ARDAMSa0",
-		//		factory.createAudioSource(audioConstraints)));
-		videoSourceStopped=false;
+		localVideoStopped=false;
 		mListener.onLocalStream(localStream);
+		return this;
+	}
+	
+	public WebRtcClient enableAudio(){
+		MediaConstraints audioConstraints = new MediaConstraints();
+		audioSource=factory.createAudioSource(audioConstraints);
+		localStream.addTrack(factory.createAudioTrack("ARDAMSa0",audioSource));
+		return this;
 	}
 
 	public void connectChannel(final String channelUrl) {
@@ -230,26 +240,26 @@ public class WebRtcClient {
 	}
 
 	
-	public void stopLocalViedo(){
-		if(!videoSourceStopped && videoSource!=null){
+	public void stopLocalVideo(){
+		if(!localVideoStopped && videoSource!=null){
 			videoSource.stop();
-			videoSourceStopped=true;
+			localVideoStopped=true;
 		}
 	}
 	
 	public void restartLocalVideo(){
-		if(videoSourceStopped && videoSource!=null){
+		if(localVideoStopped && videoSource!=null){
 			videoSource.restart();
-			videoSourceStopped=false;
+			localVideoStopped=false;
 		}
 	}
 	
-	
 	public void close(){
-		if(videoSource!=null){
-			videoSource.stop();
-			videoSourceStopped=true;
-		}
+		if(videoSource!=null)
+			videoSource.dispose();
+		if(audioSource!=null)
+			audioSource.dispose();
+		localVideoStopped=true;
 		for (Peer peer : peers.values()) {
 			peer.pc.close();
 		} 
@@ -459,7 +469,6 @@ public class WebRtcClient {
 			this.pc = factory.createPeerConnection(iceServers, pcConstraints,this);
 			this.id = id;
 			pc.addStream(localStream, new MediaConstraints());
-			mListener.onStatusChanged("Connecting "+id.toString());
 		}
 
 		@Override
