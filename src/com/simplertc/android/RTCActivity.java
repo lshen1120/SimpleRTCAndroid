@@ -63,7 +63,7 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 			public void onClick(DialogInterface dialog, int which) {
 				dialog.dismiss();
 				String url = roomInput.getText().toString();
-				client.configVideo("back", "640", "480").configAudio();
+				client.configAudio();
 				client.connectChannel(url);
 			}
 		};

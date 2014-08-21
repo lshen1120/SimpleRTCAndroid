@@ -338,6 +338,8 @@ public class WebRtcClient {
 	private static String preferISAC(String sdpDescription) {
 		String[] lines = sdpDescription.split("\r\n");
 		int mLineIndex = -1;
+		sdpDescription=sdpDescription.replaceAll("m=audio 1 RTP/SAVPF 111 103 9 102 0 8 106 105 13 127 126", 
+				"m=audio 1 RTP/SAVPF 111 103 0 8 106 105 13 126");
 		String isac16kRtpMap = null;
 		Pattern isac16kPattern = Pattern
 				.compile("^a=rtpmap:(\\d+) ISAC/16000[\r]?$");
