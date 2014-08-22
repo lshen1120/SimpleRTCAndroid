@@ -7,6 +7,8 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Point;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
 import android.view.Window;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -24,10 +26,14 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 	private WebRtcClient client;
 	private VideoRenderer.Callbacks localRender;
 	private VideoRenderer.Callbacks remoteRender;
-
+	PowerManager powerManager = null;
+    WakeLock wakeLock = null;
+    
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		powerManager = (PowerManager)this.getSystemService(RTCActivity.POWER_SERVICE);
+        wakeLock = this.powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK, "My Lock");
 
 		Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(
 				this));
@@ -63,7 +69,7 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 			public void onClick(DialogInterface dialog, int which) {
 				dialog.dismiss();
 				String url = roomInput.getText().toString();
-				client.configAudio();
+				client.configAudio().configVideo("front", "480", "640");
 				client.connectChannel(url);
 			}
 		};
@@ -80,6 +86,7 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 	@Override
 	public void onPause() {
 		super.onPause();
+		wakeLock.release();
 		vsv.onPause();
 		client.stopLocalVideo();
 	}
@@ -87,8 +94,9 @@ public class RTCActivity extends Activity implements WebRtcClient.RTCListener {
 	@Override
 	public void onResume() {
 		super.onResume();
+		wakeLock.acquire();
 		vsv.onResume();
-		client.restartLocalVideo();
+		client.restartLocalVideo();	
 	}
 	
 	 @Override

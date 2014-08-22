@@ -266,10 +266,8 @@ public class WebRtcClient {
 	}
 
 	public void close() {
-		if (videoSource != null) {
-			videoSource.stop();
-		}
-		factory.dispose();
+		stopLocalVideo();
+		//factory.dispose();  crash bug
 		localStream.audioTracks.clear();
 		localStream.videoTracks.clear();
 		localVideoStopped = true;
